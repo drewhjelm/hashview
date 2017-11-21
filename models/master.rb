@@ -264,6 +264,7 @@ class Wordlists
   property :path, String, length: 2000
   property :size, String, length: 100
   property :checksum, String, length: 64
+  property :status, String, length: 25 # Options are 'pending' or 'ready'
 end
 
 # Rules Class

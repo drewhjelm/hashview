@@ -29,12 +29,31 @@
                     %th
                       %b Action
                 %tbody
-                  - if @wordlists
-                    - @wordlists.each do |wordlist|
+                  - if @static_wordlists
+                    - @static_wordlists.each do |wordlist|
                       %tr
                         %td #{wordlist.name}
                         %td #{wordlist.size}
                         %td
-                          - unless wordlist.name == 'Smart Wordlist'
-                            %a.btn.btn-danger{href: "/wordlists/delete/#{wordlist.id}"}
-                              %i.glyphicon.glyphicon-trash{title: 'Delete'}
+                          %a.btn.btn-danger{href: "/wordlists/delete/#{wordlist.id}"}
+                            %i.glyphicon.glyphicon-trash{title: 'Delete'}
+      .container
+        .row
+          .col-md-12
+            .table
+              %table{class: 'table table-striped'}
+                %thead
+                  %tr
+                    %th
+                      %b Name
+                    %th
+                      %b Size
+                    %th
+                      %b Status
+                %tbody
+                  - if @dynamic_wordlists
+                    - @dynamic_wordlists.each do |wordlist|
+                      %tr
+                        %td #{wordlist.name}
+                        %td #{wordlist.size}
+                        %td #{wordlist.status}

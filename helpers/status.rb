@@ -1,10 +1,6 @@
 def isBusy?
-  @results = `ps awwux | grep -i Hashcat | egrep -v "(grep|sudo|resque|^$)"`
-  true if @results.length > 1
-end
-
-def isDevelopment?
-  Sinatra::Base.development?
+  jobs = Jobs.all(status: 'Running')
+  jobs.nil? ? false : true
 end
 
 def isOldVersion?

@@ -49,3 +49,7 @@ Rack::Utils.key_space_limit = 68719476736
 
 # start our local agent
 Resque.enqueue(LocalAgent)
+
+# Queue generation of Master Wordlist if not set
+master_wordlist = Wordlists.first(name: 'Master Wordlist', status: :new)
+Resque.enqueue(GenerateMasterWordlist) unless master_wordlist.nil?

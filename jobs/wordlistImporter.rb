@@ -23,7 +23,7 @@ module WordlistImporter
 
         # Make sure we're not dealing with a tar, gz, tgz, etc. Not 100% accurate!
         unless name.match(/\.tar|\.7z|\.gz|\.tgz|\.checksum/)
-          logger_wordlistimporter.info('Importing new wordslist "' + name + '" into HashView.')
+          logger_wordlistimporter.info('Importing new wordlist "' + name + '" into HashView.')
 
           # Adding to DB
           wordlist = Wordlists.new
@@ -33,7 +33,11 @@ module WordlistImporter
           wordlist.path = path_file
           wordlist.size = 0
           wordlist.checksum = nil
+          wordlist.status = 'pending'
           wordlist.save
+
+          # Queuing up Master Wordlist Job seeing as we have a new wordlist
+          Resque.enqueue(GenerateMasterWordlist)
         end
       end
     end

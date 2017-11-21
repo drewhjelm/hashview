@@ -413,7 +413,7 @@ namespace :db do
       puts '[*] Your version is up to date!'
     end
 
-    # Incase we missed anything
+    # In case we missed anything
     DataMapper.repository.auto_upgrade!
     # DataMapper::Model.descendants.each {|m| m.auto_upgrade! if m.superclass == Object}
     # puts 'db:auto:upgrade executed'
@@ -786,6 +786,31 @@ def upgrade_to_v073(user, password, host, database)
 
   puts '[*] Upgrading from v0.7.2 to v0.7.3'
   conn = Mysql.new host, user, password, database
+
+  # Update all existing hashfile statuses to ready
+  @static_wordlists = Wordlists.all
+  @static_wordlists.each do |wordlist|
+    wordlist.status = 'ready'
+    wordlist.save
+  end
+
+  # Create a shell of a Master Wordlist?
+  master_wordlist = Wordlists.new
+  master_wordlist.name = 'Master Wordlist'
+  master_wordlist.checksum = nil
+  master_wordlist.size = 0
+  master_wordlist.type = 'dynamic'
+  master_wordlist.status = 'new'
+  master_wordlist.path = 'control/wordlists/MasterWordlist.txt'
+  master_wordlist.lastupdated = Time.now
+  master_wordlist.save
+
+  system('touch control/wordlists/MasterWordlist.txt')
+
+  # How do we handle existing tasks where smart lists may be in use?
+  # Find all jobs that include the smart wordlist task
+  # if more than 0 jobs exist run upgrade
+  #
 
   # FINALIZE UPGRADE
   conn.query('UPDATE settings SET version = \'0.7.3\'')

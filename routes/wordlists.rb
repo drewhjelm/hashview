@@ -1,7 +1,8 @@
 # encoding: utf-8
 
 get '/wordlists/list' do
-  @wordlists = Wordlists.all
+  @static_wordlists = Wordlists.all(type: :static)
+  @dynamic_wordlists = Wordlists.all(type: :dynamic)
 
   haml :wordlist_list
 end
@@ -30,6 +31,9 @@ get '/wordlists/delete/:id' do
 
     # delete from db
     @wordlist.destroy
+
+    # Queuing up Master Wordlist Job seeing as we have lost a wordlist
+    Resque.enqueue(GenerateMasterWordlist)
 
   end
   redirect to('/wordlists/list')
@@ -67,7 +71,7 @@ post '/wordlists/upload/' do
 
   File.open(file_name, 'wb') { |f| f.write(params[:file][:tempfile].read) }
   Resque.enqueue(WordlistImporter)
-  Resque.enqueue(WordlistChecksum)
+  Resque.enqueue(GenerateMasterWordlist)
 
   redirect to('/wordlists/list')
 end
