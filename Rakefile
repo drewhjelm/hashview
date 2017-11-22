@@ -215,15 +215,15 @@ namespace :db do
     end
 
     # Create Smart Wordlist
-    puts '[*] Setting up default Smart Wordlist ...'
+    puts '[*] Setting up default Master Wordlist ...'
     query = [
-        'mysql', "--user=#{user}", "--password='#{password}'", "--host=#{host}", "--database=#{database}", "-e INSERT INTO wordlists (name, type, lastupdated, path, size) VALUES ('Smart Wordlist', 'dynamic', NOW(), 'control/wordlists/SmartWordlist.txt', '0')".inspect
+        'mysql', "--user=#{user}", "--password='#{password}'", "--host=#{host}", "--database=#{database}", "-e INSERT INTO wordlists (name, type, lastupdated, path, size) VALUES ('Master Wordlist', 'dynamic', NOW(), 'control/wordlists/SmartWordlist.txt', '0')".inspect
     ]
     begin
       system(query.compact.join(' '))
-      system('touch control/wordlists/SmartWordlist.txt')
+      system('touch control/wordlists/MasterWordlist.txt')
     rescue
-      raise 'Error in creating smart wordlist'
+      raise 'Error in creating Master wordlist'
     end
 
     puts '[*] Settings up default wordlist ...'
@@ -238,8 +238,38 @@ namespace :db do
       raise 'Error in creating default wordlist'
     end
 
+    puts '[*] Populating Master Wordlist.'
+    # Generate new master wordlist
+    # TODO
+    # We could get this via the facter gem
+    # Facter.value('processors'['count'])
+    cpu_count = `cat /proc/cpuinfo | grep processor | wc -l`.to_i
+    shell_cmd = 'sort --parallel ' + cpu_count.to_s + ' -u '
+    @wordlists = Wordlists.all(type: :static)
+    @wordlists.each do |entry|
+      shell_cmd = shell_cmd + entry.path.to_s + ' '
+    end
+
+    # We move to temp to prevent wordlist importer from accidentally loading the master wordlist too early
+    shell_cmd += '-o control/tmp/MasterWordlist.txt'
+    system(shell_cmd)
+
+    shell_mv_cmd = 'mv control/tmp/MasterWordlist.txt control/wordlists/MasterWordlist.txt'
+    system(shell_mv_cmd)
+
+    master_wordlist = Wordslists.first(id: '1')
+    # Recognize size diff
+    size = File.foreach(master_wordlist.path).inject(0) do |c|
+      c + 1
+    end
+    master_wordlist.size = size
+    master_wordlist.lastupdated = Time.now
+    puts '[*] Generating Master Wordlist checksum.'
+    master_wordlist.checksum = Digest::SHA2.hexdigest(File.read(master_wordlist.path))
+    master_wordlist.save
+
     # Create Default Task Dictionary
-    puts '[*] Setting up default dictionary'
+    puts '[*] Setting up default dictionary.'
     query = [
       'mysql', "--user=#{user}", "--password='#{password}'", "--host=#{host}", "--database=#{database}", "-e INSERT INTO tasks (name, wl_id, hc_attackmode, hc_rule) VALUES ('Basic Dictionary', '2', 'dictionary', 'none')".inspect
     ]
@@ -260,26 +290,26 @@ namespace :db do
       raise 'Error in creating default dictionary task + rule'
     end
 
-    # Create Default SmartWordlist Dictionary
-    puts '[*] Setting up default smart wordlist task'
+    # Create Default Master Wordlist Dictionary
+    puts '[*] Setting up default Master Wordlist task'
     query = [
-      'mysql', "--user=#{user}", "--password='#{password}'", "--host=#{host}", "--database=#{database}", "-e INSERT INTO tasks (name, wl_id, hc_attackmode) VALUES ('Smart Wordlist Dictionary', '1', 'dictionary')".inspect
+      'mysql', "--user=#{user}", "--password='#{password}'", "--host=#{host}", "--database=#{database}", "-e INSERT INTO tasks (name, wl_id, hc_attackmode) VALUES ('Master Wordlist Dictionary', '1', 'dictionary')".inspect
     ]
     begin
       system(query.compact.join(' '))
     rescue
-      raise 'Error in creating default SmartWordlist task'
+      raise 'Error in creating default Master Wordlist task'
     end
 
-    # Create Default SmartWordlist Dictionary + Rule Task
-    puts '[*] Setting up Smart Wordlist dictionary + rule task'
+    # Create Default Master Wordlist Dictionary + Rule Task
+    puts '[*] Setting up Master Wordlist dictionary + rule task'
     query = [
-      'mysql', "--user=#{user}", "--password='#{password}'", "--host=#{host}", "--database=#{database}", "-e INSERT INTO tasks (name, wl_id, hc_attackmode, hc_rule) VALUES ('Smart Wordlist Dictionary + hob064 Rules', '1', 'dictionary', '5')".inspect
+      'mysql', "--user=#{user}", "--password='#{password}'", "--host=#{host}", "--database=#{database}", "-e INSERT INTO tasks (name, wl_id, hc_attackmode, hc_rule) VALUES ('Master Word Dictionary + hob064 Rules', '1', 'dictionary', '5')".inspect
     ]
     begin
       system(query.compact.join(' '))
     rescue
-      raise 'Error in creating Smart Wordlist dictionary task + rule'
+      raise 'Error in creating Master Wordlist dictionary task + rule'
     end
 
     # Create Default Mask task
@@ -800,17 +830,66 @@ def upgrade_to_v073(user, password, host, database)
   master_wordlist.checksum = nil
   master_wordlist.size = 0
   master_wordlist.type = 'dynamic'
-  master_wordlist.status = 'new'
+  master_wordlist.status = 'pending'
   master_wordlist.path = 'control/wordlists/MasterWordlist.txt'
   master_wordlist.lastupdated = Time.now
   master_wordlist.save
 
   system('touch control/wordlists/MasterWordlist.txt')
 
-  # How do we handle existing tasks where smart lists may be in use?
-  # Find all jobs that include the smart wordlist task
-  # if more than 0 jobs exist run upgrade
-  #
+  # Generate the new list, normally we'd use enqueue, but we need
+  # to let the operation finish before the rake task exits. I think.
+  puts '[*] Generating new Master Wordlist this will take some time...'
+
+  # TODO
+  # We could get this via the facter gem
+  # Facter.value('processors'['count'])
+  cpu_count = `cat /proc/cpuinfo | grep processor | wc -l`.to_i
+  shell_cmd = 'sort --parallel ' + cpu_count.to_s + ' -u '
+  @wordlists = Wordlists.all(type: :static)
+  @wordlists.each do |entry|
+    shell_cmd = shell_cmd + entry.path.to_s + ' '
+  end
+
+  # We move to temp to prevent wordlist importer from accidentally loading the master wordlist too early
+  shell_cmd += '-o control/tmp/MasterWordlist.txt'
+  system(shell_cmd)
+
+  shell_mv_cmd = 'mv control/tmp/MasterWordlist.txt control/wordlists/MasterWordlist.txt'
+  system(shell_mv_cmd)
+
+  # Recognize size diff
+  size = File.foreach(master_wordlist.path).inject(0) do |c|
+    c + 1
+  end
+  master_wordlist.size = size
+  master_wordlist.lastupdated = Time.now
+  puts '[*] Generating Master Wordlist checksum.'
+  master_wordlist.checksum = Digest::SHA2.hexdigest(File.read(master_wordlist.path))
+  master_wordlist.save
+
+  puts '[*] Updating existing tasks and jobs that use Smart Wordlist (if any) and replacing them with Master Wordlist.'
+  smart_wordlist = Wordlists.first(name: 'Smart Wordlist')
+  @tasks = Task.all(wl_id: smart_wordlist.id)
+  if @tasks.nil?
+    puts '[*] No existing tasks found where Smart Wordlist is being used. Nice!'
+  else
+    @tasks.each do |task|
+      puts '[*] Updating task: ' + task.name
+      task.name = task.name + ' [updated]'
+      task.wl_id = master_wordlist.id
+      task.keyspace = getKeyspace(task)
+      task.save
+    end
+  end
+
+  # Delete Smart Wordlist
+  puts '[*] Deleting Smart Wordlist.'
+  begin
+    File.delete(smart_wordlist.path)
+  rescue
+    puts '[*] No Smart Wordlist to delete.'
+  end
 
   # FINALIZE UPGRADE
   conn.query('UPDATE settings SET version = \'0.7.3\'')

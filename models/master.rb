@@ -176,9 +176,6 @@ class Tasks
 
   property :id, Serial
   property :name, String
-  property :source, String
-  property :mask, String
-  property :command, String, length: 4000
   property :wl_id, String, length: 256
   property :hc_attackmode, String, length: 25
   property :hc_rule, String
